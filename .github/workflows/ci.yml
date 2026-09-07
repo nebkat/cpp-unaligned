@@ -92,15 +92,14 @@ jobs:
 
       # Only the library headers count; the tests and Boost.UT are filtered out.
       - name: Report
-        run: >
-          mkdir -p coverage &&
-          gcovr --root . --filter include/ --gcov-executable gcov-14
-          --exclude-throw-branches --exclude-unreachable-branches
-          --txt --txt-metric branch
-          --cobertura coverage.xml
-          --html-details coverage/index.html
-          --markdown-summary coverage-summary.md
-          build
+        run: |
+          mkdir -p coverage
+          gcovr --root . --filter include/ --gcov-executable gcov-14 \
+              --exclude-throw-branches --exclude-unreachable-branches \
+              --json coverage.json --cobertura coverage.xml \
+              --html-details coverage/index.html --markdown-summary coverage-summary.md \
+              --txt --txt-metric line build
+          gcovr --json-add-tracefile coverage.json --txt --txt-metric branch
 
       - name: Summarise
         run: cat coverage-summary.md >> "$GITHUB_STEP_SUMMARY"

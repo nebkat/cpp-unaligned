@@ -147,7 +147,10 @@ suite<"pointer"> pointer = [] {
         q -= 1;
         q += -1;
         expect(q == p);
-        expect(p < p + 1 and p + 1 > p and p <= p and (p <=> p + 1) == std::strong_ordering::less);
+        expect(p < p + 1 and p + 1 > p and p <= p);
+        expect((p <=> p + 1) == std::strong_ordering::less);
+        expect((p <=> p) == std::strong_ordering::equal);
+        expect((p + 1 <=> p) == std::strong_ordering::greater);
 
         *(p + 2) = 7;
         expect(eq(static_cast<std::int32_t>(p[2]), 7)) << "subscript is dereference at an offset";
@@ -384,6 +387,9 @@ suite<"algorithms"> algorithms = [] {
         const auto samples = unaligned_little_span<const std::int32_t, 24>::try_from_bytes(pcm);
         expect(samples.has_value());
         expect(eq(samples->size(), 5u));
+        expect(not unaligned_little_span<const std::int32_t, 24>::try_from_bytes(std::span { pcm }.first(14))
+                        .has_value())
+                << "a torn last sample is rejected";
         expect(std::ranges::equal(*samples, std::vector { 0, 8388607, -8388608, -2, 1 }));
         expect(eq(std::ranges::max(*samples), 8388607));
         expect(eq(std::ranges::min(*samples), -8388608));

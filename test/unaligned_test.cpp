@@ -164,6 +164,7 @@ suite<"encoding"> encoding = [] {
         expect(eq(hex(unaligned_big<std::int16_t, 32> { -2 }.storage()), "ff ff ff fe"sv));
         expect(eq(hex(unaligned_little<std::int16_t, 32> { -2 }.storage()), "fe ff ff ff"sv));
         expect(eq(hex(unaligned_big<std::int16_t, 32> { 2 }.storage()), "00 00 00 02"sv));
+        expect(eq(hex(unaligned_little<std::int16_t, 32> { 2 }.storage()), "02 00 00 00"sv));
         expect(eq(hex(unaligned_big<std::uint8_t, 16> { 0xAB }.storage()), "00 ab"sv));
 
         // Reading takes only the bytes the value has room for.
