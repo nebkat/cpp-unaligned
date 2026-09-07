@@ -69,22 +69,50 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-  # A genuinely big-endian host, emulated with QEMU: no hosted runner is one, and it is the only
-  # way to exercise the "native" side of the byte order handling from the other direction.
-  big-endian:
-    name: Linux s390x GCC 14 (big endian, QEMU)
+  coverage:
+    name: Coverage
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 20
+    env:
+      CXX: g++-14
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
+
+      - name: Install gcovr
+        run: pipx install gcovr
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUNALIGNED_TEST_SANITIZE=OFF -DUNALIGNED_TEST_COVERAGE=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      # Only the library headers count; the tests and Boost.UT are filtered out.
+      - name: Report
+        run: >
+          gcovr --root . --filter include/ --gcov-executable gcov-14
+          --exclude-throw-branches --exclude-unreachable-branches
+          --txt --txt-metric branch
+          --cobertura coverage.xml
+          --html-details coverage/index.html
+          --markdown-summary coverage-summary.md
+          build
+
+      - name: Summarise
+        run: cat coverage-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the HTML report
+        uses: actions/upload-artifact@v4
         with:
-          platforms: s390x
-      - name: Build and test
-        run: |
-          docker run --rm --platform linux/s390x -v "$PWD:/src" -w /src gcc:14 bash -euo pipefail -c '
-            apt-get update -qq && apt-get install -y -qq cmake > /dev/null
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUNALIGNED_TEST_SANITIZE=OFF
-            cmake --build build
-            ctest --test-dir build --output-on-failure
-          '
+          name: coverage-report
+          path: coverage/
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

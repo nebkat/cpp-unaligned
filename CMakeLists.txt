@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(unaligned CXX)
 
 option(UNALIGNED_TEST_SANITIZE "Build the tests with AddressSanitizer and UndefinedBehaviorSanitizer (AddressSanitizer only on MSVC)" ON)
+option(UNALIGNED_TEST_COVERAGE "Build the tests with gcov instrumentation (GCC and Clang)" OFF)
 
 # Reading and writing values that are not aligned for their type, without ever forming a
 # pointer or reference to an object that is not there.
@@ -47,6 +48,10 @@ if(BUILD_TESTING)
             if(UNALIGNED_TEST_SANITIZE)
                 target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
                 target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+            endif()
+            if(UNALIGNED_TEST_COVERAGE)
+                target_compile_options(${target} PRIVATE --coverage)
+                target_link_options(${target} PRIVATE --coverage)
             endif()
         endif()
         add_test(NAME ${name} COMMAND ${target})
