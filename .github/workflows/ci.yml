@@ -111,10 +111,8 @@ jobs:
           name: coverage-report
           path: coverage/
 
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v7
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
         with:
-          files: coverage.xml
-          disable_search: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          file: coverage.xml
+          format: cobertura

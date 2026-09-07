@@ -1,7 +1,7 @@
 # unaligned
 
 [![CI](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml/badge.svg)](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/nebkat/cpp-unaligned/graph/badge.svg)](https://codecov.io/gh/nebkat/cpp-unaligned)
+[![Coverage Status](https://coveralls.io/repos/github/nebkat/cpp-unaligned/badge.svg?branch=main)](https://coveralls.io/github/nebkat/cpp-unaligned?branch=main)
 
 Reading and writing values that are not aligned for their type.
 
