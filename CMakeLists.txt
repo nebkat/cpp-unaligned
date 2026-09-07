@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 
 project(unaligned CXX)
 
-option(UNALIGNED_TEST_SANITIZE "Build the tests with AddressSanitizer and UndefinedBehaviorSanitizer" ON)
+option(UNALIGNED_TEST_SANITIZE "Build the tests with AddressSanitizer and UndefinedBehaviorSanitizer (AddressSanitizer only on MSVC)" ON)
 
 # Reading and writing values that are not aligned for their type, without ever forming a
 # pointer or reference to an object that is not there.
@@ -20,13 +20,38 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 if(BUILD_TESTING)
-    add_executable(unaligned_ptr_test test/unaligned_ptr_test.cpp)
-    target_link_libraries(unaligned_ptr_test PRIVATE unaligned)
-    target_include_directories(unaligned_ptr_test PRIVATE "${CMAKE_CURRENT_LIST_DIR}/test")
-    target_compile_options(unaligned_ptr_test PRIVATE -Wall -Wextra)
-    if(UNALIGNED_TEST_SANITIZE)
-        target_compile_options(unaligned_ptr_test PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(unaligned_ptr_test PRIVATE -fsanitize=address,undefined)
+    # Boost.UT: a single header, macro-free test framework. Test-only; consumers never see it.
+    include(FetchContent)
+    if(POLICY CMP0135)
+        cmake_policy(SET CMP0135 NEW)
     endif()
-    add_test(NAME unaligned_ptr COMMAND unaligned_ptr_test)
+    FetchContent_Declare(ut
+            URL https://github.com/boost-ext/ut/archive/refs/tags/v2.3.1.tar.gz
+            URL_HASH SHA256=e51bf1873705819730c3f9d2d397268d1c26128565478e2e65b7d0abb45ea9b1)
+    FetchContent_MakeAvailable(ut)
+
+    # One executable per test file, registered with ctest under the file's stem.
+    function(unaligned_add_test name)
+        set(target ${name}_test)
+        add_executable(${target} test/${target}.cpp)
+        target_link_libraries(${target} PRIVATE unaligned Boost::ut)
+        target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/test")
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /W4 /permissive-)
+            if(UNALIGNED_TEST_SANITIZE)
+                # MSVC has AddressSanitizer only. It is incompatible with /RTC1, so build Release.
+                target_compile_options(${target} PRIVATE /fsanitize=address)
+            endif()
+        else()
+            target_compile_options(${target} PRIVATE -Wall -Wextra)
+            if(UNALIGNED_TEST_SANITIZE)
+                target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+                target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+            endif()
+        endif()
+        add_test(NAME ${name} COMMAND ${target})
+    endfunction()
+
+    unaligned_add_test(unaligned)
+    unaligned_add_test(unaligned_ptr)
 endif()

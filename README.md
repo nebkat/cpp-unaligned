@@ -1,5 +1,7 @@
 # unaligned
 
+[![CI](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml/badge.svg)](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml)
+
 Reading and writing values that are not aligned for their type.
 
 There is no `T` at an address inside a byte buffer, only bytes that mean one. `unaligned_ptr`
@@ -24,4 +26,5 @@ little-endian field is read correctly on a big-endian host.
 `empty()`, `front()`, `back()` and `operator[]`, and makes
 `std::ranges::to<std::vector<std::uint16_t>>(span)` work when a copy *is* wanted.
 
-Header only, C++23. `cmake --build` and `ctest` run the tests.
+Header only, C++23. The tests use [Boost.UT](https://github.com/boost-ext/ut), fetched at
+configure time; `cmake --build` and `ctest` run them.
