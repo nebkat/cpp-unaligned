@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64 GCC 14
+            os: ubuntu-24.04
+            cxx: g++-14
+          - name: Linux x86_64 Clang 18 libc++
+            os: ubuntu-24.04
+            cxx: clang++-18
+            cxxflags: -stdlib=libc++
+            packages: libc++-18-dev libc++abi-18-dev
+          - name: Linux arm64 GCC 14
+            os: ubuntu-24.04-arm
+            cxx: g++-14
+          - name: macOS arm64 AppleClang
+            os: macos-latest
+          - name: macOS x86_64 AppleClang
+            os: macos-15-intel
+          # MSVC's AddressSanitizer is incompatible with the /RTC1 checks a Debug build has.
+          - name: Windows x86_64 MSVC
+            os: windows-2025
+            msvc_arch: x64
+            build_type: RelWithDebInfo
+          # AddressSanitizer for ARM64 MSVC needs Visual Studio 2026 and is preview quality.
+          - name: Windows arm64 MSVC
+            os: windows-11-arm
+            msvc_arch: arm64
+            build_type: RelWithDebInfo
+            sanitize: OFF
+    env:
+      CXX: ${{ matrix.cxx }}
+      CXXFLAGS: ${{ matrix.cxxflags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        if: matrix.packages
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+
+      - name: Set up the MSVC environment
+        if: matrix.msvc_arch
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type || 'Debug' }}
+          -DUNALIGNED_TEST_SANITIZE=${{ matrix.sanitize || 'ON' }}
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # A genuinely big-endian host, emulated with QEMU: no hosted runner is one, and it is the only
+  # way to exercise the "native" side of the byte order handling from the other direction.
+  big-endian:
+    name: Linux s390x GCC 14 (big endian, QEMU)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: s390x
+      - name: Build and test
+        run: |
+          docker run --rm --platform linux/s390x -v "$PWD:/src" -w /src gcc:14 bash -euo pipefail -c '
+            apt-get update -qq && apt-get install -y -qq cmake > /dev/null
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUNALIGNED_TEST_SANITIZE=OFF
+            cmake --build build
+            ctest --test-dir build --output-on-failure
+          '
