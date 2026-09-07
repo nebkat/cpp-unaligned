@@ -272,4 +272,8 @@ suite<"arithmetic"> arithmetic = [] {
 
 } // namespace
 
-int main() {}
+// Run from main rather than from the runner's destructor at exit, so that a coverage build has
+// flushed nothing yet when the tests execute, and so that the binary takes UT's command line.
+int main(int argc, const char **argv) {
+    return boost::ut::cfg<>.run({ .report_errors = true, .argc = argc, .argv = argv }) ? 1 : 0;
+}
