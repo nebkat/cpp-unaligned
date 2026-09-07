@@ -351,7 +351,8 @@ suite<"algorithms"> algorithms = [] {
         expect(eq(std::ranges::fold_left(span, 0, std::plus {}), 36));
 
         // Range-for deduces the proxy, so mutation in the loop lands in the buffer.
-        for (auto element : span) element *= 2;
+        for (auto element : span)
+            element *= 2;
         expect(eq(hex({ buffer.data() + 1, 4 }), "00 02 00 04"sv));
 
         std::ranges::fill(span, std::uint16_t { 0xFFFF });
@@ -391,7 +392,8 @@ suite<"algorithms"> algorithms = [] {
         // Halve the gain in place, through a mutable view of the same bytes.
         auto scratch = pcm;
         const unaligned_little_span<std::int32_t, 24> mutable_samples { scratch.data(), 5 };
-        for (auto sample : mutable_samples) sample /= 2;
+        for (auto sample : mutable_samples)
+            sample /= 2;
         expect(std::ranges::equal(mutable_samples, std::vector { 0, 4194303, -4194304, -1, 0 }));
         expect(eq(hex(scratch), "00 00 00 ff ff 3f 00 00 c0 ff ff ff 00 00 00"sv));
     };
