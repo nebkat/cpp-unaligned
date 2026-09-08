@@ -1,88 +1,62 @@
-# unaligned
+# nonstd::unaligned
 
 [![CI](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml/badge.svg?branch=ci)](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/nebkat/cpp-unaligned/badge.svg?branch=ci)](https://coveralls.io/github/nebkat/cpp-unaligned?branch=ci)
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/23)
 
-Fields with a fixed byte layout, for any trivially copyable type: integers of any byte width,
-floats, enums, and structs of those, in either byte order. A struct of such fields has alignment 1
-and no padding, so it *is* the wire format. Standard C++23, no pragmas, and nothing is ever read
-through a misaligned pointer.
+Modern C++ unaligned data storage for any trivially copyable type. Standard C++23, no pragmas, no undefined behavior.
 
-## Answering an ARP request, before
+## Why
 
-Packed structs, byte arrays for anything without a native width, `ntohs` on every read, `htons`
-on every write, and a misaligned `std::uint32_t` that strict-alignment targets will fault on:
+Wire formats often compress structs for efficiency, resulting in fields resting out of their natural alignment.
+Other times they use non-native endianness for compatibility with other systems.
 
-```cpp
-#pragma pack(push, 1)
-struct ethernet_header { std::uint8_t destination[6], source[6]; std::uint16_t type; };
-struct arp_packet {
-    std::uint16_t hardware_type, protocol_type;
-    std::uint8_t hardware_length, protocol_length;
-    std::uint16_t operation;
-    std::uint8_t sender_mac[6]; std::uint32_t sender_ip;
-    std::uint8_t target_mac[6]; std::uint32_t target_ip;
-};
-struct arp_frame { ethernet_header ethernet; arp_packet arp; };
-#pragma pack(pop)
+This has traditionally been solved with the help of:
+- `std::memcpy`
+- `__attribute__((packed))` / `[[gnu:packed]]`
+- `ntohs` / `htons`
+- `reinterpret_cast`
+- Macros, unions and other hacks
 
-std::optional<arp_frame> reply_to(arp_frame f, const std::uint8_t (&our_mac)[6], std::uint32_t our_ip) {
-    if (ntohs(f.ethernet.type) != 0x0806 || ntohs(f.arp.operation) != 1 || ntohl(f.arp.target_ip) != our_ip)
-        return std::nullopt;
-    std::memcpy(f.ethernet.destination, f.ethernet.source, 6);
-    std::memcpy(f.ethernet.source, our_mac, 6);
-    f.arp.operation = htons(2);
-    std::memcpy(f.arp.target_mac, f.arp.sender_mac, 6);
-    f.arp.target_ip = f.arp.sender_ip;
-    std::memcpy(f.arp.sender_mac, our_mac, 6);
-    f.arp.sender_ip = htonl(our_ip);
-    return f;
+These methods:
+- Make it hard to understand the protocol
+- Are prone to encoding errors
+- Often rely on undefined behavior
+- May not be portable across all systems
+
+__`nonstd::unaligned<T>` abstracts away this problem by providing a type that behaves similar to a `T` but with `alignof(nonstd::unaligned<T>) == 1`.__
+
+```c++
+// Before, nghttp2/lib/nghttp2_frame.c
+void nghttp2_frame_pack_frame_hd(uint8_t *buf, const nghttp2_frame_hd *hd) {
+  nghttp2_put_uint32be(&buf[0], (uint32_t)(hd->length << 8));
+  buf[3] = hd->type;
+  buf[4] = hd->flags;
+  nghttp2_put_uint32be(&buf[5], (uint32_t)hd->stream_id);
 }
-```
 
-## After
-
-Each field declares its own width and byte order once. A MAC address is a 48-bit integer, the
-EtherType and operation are enums, and every field reads and writes as a plain value:
-
-```cpp
-#include <nonstd/unaligned.hpp>
-
-using mac_address = nonstd::unaligned_big<std::uint64_t, 48>;
-enum class ether_type : std::uint16_t { ipv4 = 0x0800, arp = 0x0806 };
-enum class arp_operation : std::uint16_t { request = 1, reply = 2 };
-
-struct ethernet_header { mac_address destination, source; nonstd::unaligned_big<ether_type> type; };
-struct arp_packet {
-    nonstd::unaligned_big_uint16_t hardware_type, protocol_type;
-    nonstd::unaligned_big_uint8_t hardware_length, protocol_length;
-    nonstd::unaligned_big<arp_operation> operation;
-    mac_address sender_mac; nonstd::unaligned_big_uint32_t sender_ip;
-    mac_address target_mac; nonstd::unaligned_big_uint32_t target_ip;
-};
-struct arp_frame { ethernet_header ethernet; arp_packet arp; };
-static_assert(sizeof(arp_frame) == 42 && alignof(arp_frame) == 1);
-
-std::optional<arp_frame> reply_to(arp_frame f, std::uint64_t our_mac, std::uint32_t our_ip) {
-    if (f.ethernet.type != ether_type::arp || f.arp.operation != arp_operation::request || f.arp.target_ip != our_ip)
-        return std::nullopt;
-    f.ethernet.destination = f.ethernet.source;
-    f.ethernet.source = our_mac;
-    f.arp.operation = arp_operation::reply;
-    f.arp.target_mac = f.arp.sender_mac;
-    f.arp.target_ip = f.arp.sender_ip;
-    f.arp.sender_mac = our_mac;
-    f.arp.sender_ip = our_ip;
-    return f;
+void nghttp2_frame_unpack_frame_hd(nghttp2_frame_hd *hd, const uint8_t *buf) {
+  *hd = (nghttp2_frame_hd){
+    .length = nghttp2_get_uint32(&buf[0]) >> 8,
+    .stream_id = nghttp2_get_uint32(&buf[5]) & NGHTTP2_STREAM_ID_MASK,
+    .type = buf[3],
+    .flags = buf[4],
+  };
 }
-```
+// The << 8 and >> 8 pair exists purely because there is no 24-bit type. That is your feature, stated as a workaround by someone else.
 
-`arp_frame` is 42 bytes in memory exactly as on the wire: `std::memcpy` it in from a received buffer
-and out to a send buffer. Fields of widths no built-in type has, such as 24, 40 or 48 bits, are
-values too, sign-extended when signed. Everything is `constexpr`, so protocol constants can be
-`static_assert`ed. And because each field knows its own order, the same code is correct on a
-big-endian host.
+// After
+enum class frame_type : std::uint8_t { data = 0, headers = 1, settings = 4, goaway = 7 };
+
+struct frame_header {
+    nonstd::unaligned_big_uint24_t length;   // uint32_t packed into 24 bits
+    nonstd::unaligned_big<frame_type> type;
+    nonstd::unaligned_big_uint8_t flags;
+    nonstd::unaligned_big_uint32_t stream_id; // top bit reserved
+};
+static_assert(sizeof(frame_header) == 9 && alignof(frame_header) == 1);
+
+```
 
 ## Packed arrays
 
