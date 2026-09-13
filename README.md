@@ -1,7 +1,7 @@
 # nonstd::unaligned
 
-[![CI](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml/badge.svg?branch=ci)](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/nebkat/cpp-unaligned/badge.svg?branch=ci)](https://coveralls.io/github/nebkat/cpp-unaligned?branch=ci)
+[![CI](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nebkat/cpp-unaligned/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/nebkat/cpp-unaligned/badge.svg?branch=main)](https://coveralls.io/github/nebkat/cpp-unaligned?branch=main)
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/23)
 
 Modern C++ unaligned data storage for any trivially copyable type. Standard C++23, no pragmas, no undefined behavior.
