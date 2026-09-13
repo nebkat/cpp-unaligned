@@ -43,7 +43,7 @@ void nghttp2_frame_unpack_frame_hd(nghttp2_frame_hd *hd, const uint8_t *buf) {
     .flags = buf[4],
   };
 }
-// The << 8 and >> 8 pair exists purely because there is no 24-bit type. That is your feature, stated as a workaround by someone else.
+// The << 8 and >> 8 pair exists purely because there is no 24-bit type.
 
 // After
 enum class frame_type : std::uint8_t { data = 0, headers = 1, settings = 4, goaway = 7 };
@@ -55,7 +55,6 @@ struct frame_header {
     nonstd::unaligned_big_uint32_t stream_id; // top bit reserved
 };
 static_assert(sizeof(frame_header) == 9 && alignof(frame_header) == 1);
-
 ```
 
 ## Packed arrays
